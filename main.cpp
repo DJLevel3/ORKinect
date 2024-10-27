@@ -78,14 +78,14 @@ bool initKinect() {
         NUI_IMAGE_TYPE_DEPTH,
         NUI_IMAGE_RESOLUTION_640x480,    // Image resolution
         0,      // Image stream flags, e.g. near mode
-        2,      // Number of frames to buffer
+        1,      // Number of frames to buffer
         NULL,   // Event handle
         &depthStream);
     sensor->NuiImageStreamOpen(
         NUI_IMAGE_TYPE_COLOR,                     // Depth camera or rgb camera?
         NUI_IMAGE_RESOLUTION_640x480,             // Image resolution
         0,      // Image stream flags, e.g. near mode
-        2,      // Number of frames to buffer
+        1,      // Number of frames to buffer
         NULL,   // Event handle
         &rgbStream);
     return sensor;
@@ -189,8 +189,8 @@ void getKinectData(GLubyte* dest) {
 }
 
 void lineBetween(Vector4 start, Vector4 end) {
-    glVertex3f(start.x, start.y, start.z);
-    glVertex3f(end.x, end.y, end.z);
+    glVertex3f(start.x, start.y, -start.z);
+    glVertex3f(end.x, end.y, -end.z);
 }
 
 void drawSkeleton(Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
@@ -212,7 +212,6 @@ void drawSkeleton(Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
     const Vector4& footR = sp[NUI_SKELETON_POSITION_FOOT_RIGHT];
 
     glBegin(GL_LINES);
-    glColor3f(1.f, 1.f, 1.f);
     if (lHand.w > 0 && lElbow.w > 0 && lShoulder.w > 0 && neck.w > 0) {
         lineBetween(lHand, lElbow);
         lineBetween(lElbow, lShoulder);
@@ -238,16 +237,37 @@ void drawSkeleton(Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
         lineBetween(hipR, kneeR);
         lineBetween(kneeR, footR);
     }
-    glColor3f(1.f, 1.f, 1.f);
     glEnd();
 }
 
 void drawKinectData() {
-
     // OpenGL setup
     glClearColor(0, 0, 0, 0);
     glClearDepth(1.0f);
     glEnable(GL_TEXTURE_2D);
+    
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
+    
+    glViewport(0, 0, 640, 480);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, camW, camH, 0, 1, -1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, 0.0f);
+        glVertex3f(0, 0, 0);
+        glTexCoord2f(1.0f, 0.0f);
+        glVertex3f(camW, 0, 0);
+        glTexCoord2f(1.0f, 1.0f);
+        glVertex3f(camW, camH, 0.0f);
+        glTexCoord2f(0.0f, 1.0f);
+        glVertex3f(0, camH, 0.0f);
+    glEnd();
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     // Camera setup
     glViewport(0, 0, 1280, 960);
@@ -256,34 +276,14 @@ void drawKinectData() {
     glFrustum(-8 / 45.f, 8 / 45.f, -0.1, 0.1, 0.1, 100);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    /*
-    // Initialize textures
-    glGenTextures(1, &texID);
-    glBindTexture(GL_TEXTURE_2D, texID);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
-        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
-    
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f);
-        glVertex3f(-camW/100, camH/100, -5.0);
-        glTexCoord2f(1.0f, 0.0f);
-        glVertex3f(camW/100, camH/100, -5.0);
-        glTexCoord2f(1.0f, 1.0f);
-        glVertex3f(camW/100, -camH/100, -5.0f);
-        glTexCoord2f(0.0f, 1.0f);
-        glVertex3f(-camW/100, -camH/100, -5.0f);
-    glEnd();
-    glBindTexture(GL_TEXTURE_2D, 0);
-    */
     glClear(GL_DEPTH_BUFFER_BIT);
 
+    glColor3f(0.f, 1.f, 0.f);
     if (activeSkeletons > 0) drawSkeleton(skeletonPosition);
+    glColor3f(0.f, 0.f, 1.f);
     if (activeSkeletons > 1) drawSkeleton(skeletonPosition2);
+    glColor3f(1.f, 1.f, 1.f);
 }
 
 json vertate(Vector4 vert) {
@@ -589,6 +589,15 @@ int main(int, char**)
     float footCSpeedY = 0.0123;
     float footCSpeedZ = 0.0123;
 
+    // Initialize textures
+    glGenTextures(1, &texID);
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
+        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     // Main loop
     bool done = false;
     while (!done)
@@ -623,7 +632,7 @@ int main(int, char**)
             ImGui::Checkbox("Hand Cubes", &handCube);
             ImGui::Checkbox("Foot Cubes", &footCube);
 
-            ImGui::SetWindowFontScale(3);
+            ImGui::SetWindowFontScale(1.5);
             ImGui::Text("Skeletons Tracked: %d", activeSkeletons);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
