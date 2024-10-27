@@ -467,7 +467,6 @@ json skeletate(json skelet, Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
 }
 
 void makeJson() {
-    getSkeletonData();
     json newJson = skeletonJson;
     json skelet1, skelet2, matrix;
 
@@ -691,7 +690,16 @@ int main(int, char**)
             footCubeRotationR = footCubeRotationR + glm::vec3({ -footCSpeedX * divider, -footCSpeedY * divider, -footCSpeedZ * divider });
 
             makeJson();
-            if (skeletonJsonChanged) {
+            if (activeSkeletons == 0) {
+                std::string j = "{\"objects\": [{\"name\":\"Line Art\", \"vertices\" : [[{\"x\":-0.5, \"y\" : -0.5, \"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}]], \"matrix\" : [1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, -11.111111640930176, 0.0, 0.0, 0.0, 1.0] }] , \"focalLength\" : -2.5}";
+                iResult = send(orsock, j.c_str(), j.length(), 0);
+                if (iResult == SOCKET_ERROR) {
+                    wprintf(L"Sending data failed! code %d\n", iResult);
+                    closesocket(orsock);
+                    WSACleanup();
+                    return 1;
+                }
+            } else if (skeletonJsonChanged) {
                 std::string j = skeletonJson.dump();
                 std::cout << "JSON Sending" << std::endl;
                 iResult = send(orsock, j.c_str(), j.length(), 0);
