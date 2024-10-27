@@ -15,7 +15,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
-#define DISPLAYDEPTH
 
 #include <Windows.h>
 #include <Ole2.h>
@@ -49,8 +48,10 @@ SOCKET orsock = INVALID_SOCKET;
 #define camW 640
 #define camH 480
 
-GLuint texID;
-GLubyte data[camW * camH * 4];
+GLuint texIDD;
+GLuint texIDC;
+GLubyte dataD[camW * camH * 4];
+GLubyte dataC[camW * camH * 4];
 
 HANDLE rgbStream;
 HANDLE depthStream;
@@ -179,12 +180,9 @@ void getKinectDataDepth(GLubyte* dest) {
     sensor->NuiImageStreamReleaseFrame(depthStream, &imageFrame);
 }
 
-void getKinectData(GLubyte* dest) {
-#if defined(DISPLAYDEPTH)
-    getKinectDataDepth(dest);
-#else
-    getKinectDataColor(dest);
-#endif
+void getKinectData(GLubyte* destD, GLubyte* destC) {
+    getKinectDataDepth(destD);
+    getKinectDataColor(destC);
     getSkeletonData();
 }
 
@@ -245,10 +243,12 @@ void drawKinectData() {
     glClearColor(0, 0, 0, 0);
     glClearDepth(1.0f);
     glEnable(GL_TEXTURE_2D);
-    
-    glBindTexture(GL_TEXTURE_2D, texID);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
-    
+
+    // Depth Viewport
+    glBindTexture(GL_TEXTURE_2D, texIDD);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH,
+        GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)dataD);
+
     glViewport(0, 0, 640, 480);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -258,22 +258,47 @@ void drawKinectData() {
 
     glClear(GL_DEPTH_BUFFER_BIT);
     glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f);
-        glVertex3f(0, 0, 0);
-        glTexCoord2f(1.0f, 0.0f);
-        glVertex3f(camW, 0, 0);
-        glTexCoord2f(1.0f, 1.0f);
-        glVertex3f(camW, camH, 0.0f);
-        glTexCoord2f(0.0f, 1.0f);
-        glVertex3f(0, camH, 0.0f);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(0, 0, 0);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(camW, 0, 0);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(camW, camH, 0.0f);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(0, camH, 0.0f);
     glEnd();
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    // Camera setup
-    glViewport(0, 0, 1280, 960);
+    // Color Viewport
+    glBindTexture(GL_TEXTURE_2D, texIDC);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH,
+        GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)dataC);
+
+    glViewport(640, 0, 640, 480);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-8 / 45.f, 8 / 45.f, -0.1, 0.1, 0.1, 100);
+    glOrtho(0, camW, camH, 0, 1, -1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(0, 0, 0);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(camW, 0, 0);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(camW, camH, 0.0f);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(0, camH, 0.0f);
+    glEnd();
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Skeleton Viewport
+    glViewport(640, 480, 640, 480);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glFrustum(-4.f/30, 4.f/30, -0.1, 0.1, 0.3, 100);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
@@ -590,12 +615,20 @@ int main(int, char**)
     float footCSpeedZ = 0.0123;
 
     // Initialize textures
-    glGenTextures(1, &texID);
-    glBindTexture(GL_TEXTURE_2D, texID);
+    glGenTextures(1, &texIDD);
+    glBindTexture(GL_TEXTURE_2D, texIDD);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
-        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
+        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)dataD);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenTextures(1, &texIDC);
+    glBindTexture(GL_TEXTURE_2D, texIDC);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
+        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)dataC);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     // Main loop
@@ -644,7 +677,7 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         // Draw Kinect Data
-        getKinectData(data);
+        getKinectData(dataD, dataC);
         drawKinectData();
         const int divider = 4;
         frameCounter = (frameCounter + 1) % divider;
