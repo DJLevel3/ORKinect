@@ -13,11 +13,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <SDL3/SDL.h>
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-#include <SDL3/SDL_opengles2.h>
-#else
 #include <SDL3/SDL_opengl.h>
-#endif
 
 #define DISPLAYDEPTH
 
@@ -26,8 +22,6 @@
 #include <NuiApi.h>
 
 #include <glm/glm.hpp>
-//#include <glm/gtc/matrix_transform.hpp>
-//#include <glm/gtc/type_ptr.hpp>
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -113,6 +107,7 @@ void getSkeletonData() {
                     if (skeleton.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_NOT_TRACKED) {
                         skeletonPosition[i].w = -1;
                     }
+                    else skeletonPosition[i].w = 1;
                 }
                 activeSkeletons++;
             }
@@ -127,6 +122,7 @@ void getSkeletonData() {
                     if (skeleton.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_NOT_TRACKED) {
                         skeletonPosition2[i].w = -1;
                     }
+                    else skeletonPosition2[i].w = 1;
                 }
                 activeSkeletons++;
             }
@@ -247,14 +243,6 @@ void drawSkeleton(Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
 }
 
 void drawKinectData() {
-    // Initialize textures
-    glGenTextures(1, &texID);
-    glBindTexture(GL_TEXTURE_2D, texID);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
-        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     // OpenGL setup
     glClearColor(0, 0, 0, 0);
@@ -268,10 +256,15 @@ void drawKinectData() {
     glFrustum(-8 / 45.f, 8 / 45.f, -0.1, 0.1, 0.1, 100);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-
-    getKinectData(data);
     /*
+    // Initialize textures
+    glGenTextures(1, &texID);
     glBindTexture(GL_TEXTURE_2D, texID);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, camW, camH,
+        0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
+
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camW, camH, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)data);
     
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -622,9 +615,6 @@ int main(int, char**)
 
         // Show the config window
         {
-            static float f = 0.0f;
-            static bool counter = 0;
-
             ImGui::Begin("Connection Manager");                          // Create a window called "Hello, world!" and append into it.
 
             ImGui::Text("Connected to osci-render");               // Display some text (you can use a format strings too)
@@ -633,6 +623,7 @@ int main(int, char**)
             ImGui::Checkbox("Hand Cubes", &handCube);
             ImGui::Checkbox("Foot Cubes", &footCube);
 
+            ImGui::SetWindowFontScale(3);
             ImGui::Text("Skeletons Tracked: %d", activeSkeletons);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
@@ -644,6 +635,7 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         // Draw Kinect Data
+        getKinectData(data);
         drawKinectData();
         const int divider = 4;
         frameCounter = (frameCounter + 1) % divider;
@@ -658,8 +650,8 @@ int main(int, char**)
 
             makeJson();
             if (skeletonJsonChanged) {
-                std::cout << skeletonJson << std::endl;
                 std::string j = skeletonJson.dump();
+                std::cout << "JSON Sending" << std::endl;
                 iResult = send(orsock, j.c_str(), j.length(), 0);
                 if (iResult == SOCKET_ERROR) {
                     wprintf(L"Sending data failed! code %d\n", iResult);
