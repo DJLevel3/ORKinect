@@ -31,10 +31,15 @@ json skeletonJson;
 bool skeletonJsonChanged = false;
 
 bool headCube = true;
+bool headIco = true;
 bool handCube = false;
 bool footCube = false;
+bool kinectConnected = false;
+
+float slide = 3;
 
 glm::vec3 headCubeRotation = { 0,0,0 };
+glm::vec3 headIcoRotation = { 0,0,0 };
 
 glm::vec3 handCubeRotationL = { 0,0,0 };
 glm::vec3 handCubeRotationR = { 0,0,0 };
@@ -61,6 +66,17 @@ int activeSkeletons = 0;
 Vector4 skeletonPosition[NUI_SKELETON_POSITION_COUNT];
 Vector4 skeletonPosition2[NUI_SKELETON_POSITION_COUNT];
 
+void SDLCleanup(SDL_GLContext gl_context, SDL_Window* window) {
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_GL_DestroyContext(gl_context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
 bool initKinect() {
     // Get a working kinect sensor
     int numSensors = 0;
@@ -79,14 +95,14 @@ bool initKinect() {
         NUI_IMAGE_TYPE_DEPTH,
         NUI_IMAGE_RESOLUTION_640x480,    // Image resolution
         0,      // Image stream flags, e.g. near mode
-        1,      // Number of frames to buffer
+        2,      // Number of frames to buffer
         NULL,   // Event handle
         &depthStream);
     sensor->NuiImageStreamOpen(
         NUI_IMAGE_TYPE_COLOR,                     // Depth camera or rgb camera?
         NUI_IMAGE_RESOLUTION_640x480,             // Image resolution
         0,      // Image stream flags, e.g. near mode
-        1,      // Number of frames to buffer
+        2,      // Number of frames to buffer
         NULL,   // Event handle
         &rgbStream);
     return sensor;
@@ -104,7 +120,7 @@ void getSkeletonData() {
             if (skeleton.eTrackingState == NUI_SKELETON_TRACKED) {
                 for (int i = 0; i < NUI_SKELETON_POSITION_COUNT; i++) {
                     skeletonPosition[i] = skeleton.SkeletonPositions[i];
-                    skeletonPosition[i].z = skeletonPosition[i].z + 1;
+                    skeletonPosition[i].z = skeletonPosition[i].z + slide;
                     if (skeleton.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_NOT_TRACKED) {
                         skeletonPosition[i].w = -1;
                     }
@@ -119,7 +135,7 @@ void getSkeletonData() {
             if (skeleton.eTrackingState == NUI_SKELETON_TRACKED) {
                 for (int i = 0; i < NUI_SKELETON_POSITION_COUNT; i++) {
                     skeletonPosition2[i] = skeleton.SkeletonPositions[i];
-                    skeletonPosition2[i].z = skeletonPosition2[i].z + 1;
+                    skeletonPosition2[i].z = skeletonPosition2[i].z + slide;
                     if (skeleton.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_NOT_TRACKED) {
                         skeletonPosition2[i].w = -1;
                     }
@@ -181,6 +197,7 @@ void getKinectDataDepth(GLubyte* dest) {
 }
 
 void getKinectData(GLubyte* destD, GLubyte* destC) {
+    if (!kinectConnected) return;
     getKinectDataDepth(destD);
     getKinectDataColor(destC);
     getSkeletonData();
@@ -239,6 +256,7 @@ void drawSkeleton(Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
 }
 
 void drawKinectData() {
+    if (!kinectConnected) return;
     // OpenGL setup
     glClearColor(0, 0, 0, 0);
     glClearDepth(1.0f);
@@ -334,6 +352,195 @@ glm::vec3 rotate(glm::vec3 v, glm::vec3 k, float theta) {
     return v;
 }
 
+glm::vec3 icovert(int n, int stroke, glm::vec3 rotation, float scale) {
+    const float stroke1[2][3] = { { -0.4472150206565857, -0.5257200002670288, -0.7235999703407288 },{ 0.4472149908542633,-0.8506399989128113,-0.27638503909111023 } };
+    const float stroke2[4][3] = { {0.4472149908542633,-0.8506399989128113,-0.27638503909111023},{-0.4472149908542633,-0.8506399989128113,0.27638503909111023},{-0.4472149610519409,0.0,0.8944249749183655},{-1.0,0.0,4.371138828673793e-08} };
+    const float stroke3[2][3] = { {-1.0,0.0,4.371138828673793e-08},{-0.4472149908542633,0.8506399989128113,0.27638503909111023} };
+    const float stroke4[4][3] = { {-0.4472149908542633,0.8506399989128113,0.27638503909111023},{-0.4472150206565857,0.5257200002670288,-0.7235999703407288},{0.4472149610519409,0.0,-0.8944249749183655},{-0.4472150206565857,-0.5257200002670288,-0.7235999703407288} };
+    const float stroke5[2][3] = { {-0.4472150206565857,-0.5257200002670288,-0.7235999703407288},{-0.4472150206565857,0.5257200002670288,-0.7235999703407288} };
+    const float stroke6[4][3] = { {-0.4472150206565857,0.5257200002670288,-0.7235999703407288},{-1.0,0.0,4.371138828673793e-08},{-0.4472150206565857,-0.5257200002670288,-0.7235999703407288},{-0.4472149908542633,-0.8506399989128113,0.27638503909111023} };
+    const float stroke7[2][3] = { {-0.4472149908542633,-0.8506399989128113,0.27638503909111023},{-1.0,0.0,4.371138828673793e-08} };
+    const float stroke8[2][3] = { {-0.4472149908542633,-0.8506399989128113,0.27638503909111023},{0.4472150206565857,-0.5257200002670288,0.7235999703407288} };
+    const float stroke9[4][3] = { {0.4472150206565857,-0.5257200002670288,0.7235999703407288},{-0.4472149610519409,0.0,0.8944249749183655},{-0.4472149908542633,0.8506399989128113,0.27638503909111023},{0.4472150206565857,0.5257200002670288,0.7235999703407288} };
+    const float stroke10[2][3] = { {0.4472150206565857,0.5257200002670288,0.7235999703407288},{-0.4472149610519409,0.0,0.8944249749183655} };
+    const float stroke11[2][3] = { {-0.4472149908542633,0.8506399989128113,0.27638503909111023},{0.4472149908542633,0.8506399989128113,-0.27638503909111023} };
+    const float stroke12[2][3] = { {0.4472149908542633,0.8506399989128113,-0.27638503909111023},{-0.4472150206565857,0.5257200002670288,-0.7235999703407288} };
+    const float stroke13[2][3] = { {0.4472149610519409,0.0,-0.8944249749183655},{1.0,0.0,-4.371138828673793e-08} };
+    const float stroke14[2][3] = { {1.0,0.0,-4.371138828673793e-08},{0.4472149908542633,-0.8506399989128113,-0.27638503909111023} };
+    const float stroke15[4][3] = { {0.4472149908542633,-0.8506399989128113,-0.27638503909111023},{0.4472150206565857,-0.5257200002670288,0.7235999703407288},{0.4472150206565857,0.5257200002670288,0.7235999703407288},{0.4472149908542633,0.8506399989128113,-0.27638503909111023} };
+    const float stroke16[3][3] = { {0.4472149908542633,0.8506399989128113,-0.27638503909111023},{0.4472149610519409,0.0,-0.8944249749183655},{0.4472149908542633,-0.8506399989128113,-0.27638503909111023} };
+    const float stroke17[3][3] = { {0.4472150206565857,0.5257200002670288,0.7235999703407288},{1.0,0.0,-4.371138828673793e-08},{0.4472150206565857,-0.5257200002670288,0.7235999703407288} };
+    const float stroke18[2][3] = { {1.0,0.0,-4.371138828673793e-08},{0.4472149908542633,0.8506399989128113,-0.27638503909111023} };
+
+    glm::vec3 v = { 0,0,0 };
+
+    switch (stroke) {
+    case 0:
+        v = { stroke1[n][0], stroke1[n][1], stroke1[n][2]};
+        break;
+    case 1:
+        v = { stroke2[n][0], stroke2[n][1], stroke2[n][2]};
+        break;
+    case 2:
+        v = { stroke3[n][0], stroke3[n][1], stroke3[n][2]};
+        break;
+    case 3:
+        v = { stroke4[n][0], stroke4[n][1], stroke4[n][2]};
+        break;
+    case 4:
+        v = { stroke5[n][0], stroke5[n][1], stroke5[n][2]};
+        break;
+    case 5:
+        v = { stroke6[n][0], stroke6[n][1], stroke6[n][2]};
+        break;
+    case 6:
+        v = { stroke7[n][0], stroke7[n][1], stroke7[n][2]};
+        break;
+    case 7:
+        v = { stroke8[n][0], stroke8[n][1], stroke8[n][2]};
+        break;
+    case 8:
+        v = { stroke9[n][0], stroke9[n][1], stroke9[n][2]};
+        break;
+    case 9:
+        v = { stroke10[n][0], stroke10[n][1], stroke10[n][2]};
+        break;
+    case 10:
+        v = { stroke11[n][0], stroke11[n][1], stroke11[n][2]};
+        break;
+    case 11:
+        v = { stroke12[n][0], stroke12[n][1], stroke12[n][2]};
+        break;
+    case 12:
+        v = { stroke13[n][0], stroke13[n][1], stroke13[n][2]};
+        break;
+    case 13:
+        v = { stroke14[n][0], stroke14[n][1], stroke14[n][2]};
+        break;
+    case 14:
+        v = { stroke15[n][0], stroke15[n][1], stroke15[n][2]};
+        break;
+    case 15:
+        v = { stroke16[n][0], stroke16[n][1], stroke16[n][2]};
+        break;
+    case 16:
+        v = { stroke17[n][0], stroke17[n][1], stroke17[n][2]};
+        break;
+    case 17:
+        v = { stroke18[n][0], stroke18[n][1], stroke18[n][2]};
+        break;
+    }
+
+    const glm::vec3 unitX = { 1.f, 0.f, 0.f };
+    const glm::vec3 unitY = { 0.f, 1.f, 0.f };
+    const glm::vec3 unitZ = { 0.f, 0.f, 1.f };
+
+    v = v * scale;
+    v = rotate(v, unitX, rotation.x);
+    v = rotate(v, unitY, rotation.y);
+    v = rotate(v, unitZ, rotation.z);
+    return v;
+}
+
+json genIco(json j, Vector4 root, glm::vec3 rotation, float scale) {
+    scale = scale * 0.1;
+    json stroke;
+    int k = 0;
+
+    {
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 4; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 4; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 4; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 4; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 4; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 3; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 3; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+        k++;
+
+        for (int i = 0; i < 2; i++) stroke.push_back(vertate(root, icovert(i, k, rotation, scale)));
+        j["vertices"].push_back(stroke);
+        stroke = json();
+    }
+
+    return j;
+}
+
 glm::vec3 cubevert(int n, glm::vec3 rotation, float scale) {
     const float cVerts[16][3] =
     {   {-1.f, -1.f, -1.f},
@@ -358,7 +565,8 @@ glm::vec3 cubevert(int n, glm::vec3 rotation, float scale) {
     const glm::vec3 unitY = { 0.f, 1.f, 0.f };
     const glm::vec3 unitZ = { 0.f, 0.f, 1.f };
 
-    glm::vec3 v = { cVerts[n][0] * scale, cVerts[n][1] * scale, cVerts[n][2] * scale };
+    glm::vec3 v = { cVerts[n][0], cVerts[n][1], cVerts[n][2] };
+    v = v * scale;
     v = rotate(v, unitX, rotation.x);
     v = rotate(v, unitY, rotation.y);
     v = rotate(v, unitZ, rotation.z);
@@ -367,26 +575,9 @@ glm::vec3 cubevert(int n, glm::vec3 rotation, float scale) {
 
 json genCube(json j, Vector4 root, glm::vec3 cubeRotation, float scale) {
     scale = scale * 0.1;
-    if (root.w > 0) {
-        json stroke;
-        stroke.push_back(vertate(root, cubevert(0, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(1, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(2, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(3, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(4, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(5, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(6, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(7, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(8, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(9, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(10, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(11, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(12, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(13, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(14, cubeRotation, scale)));
-        stroke.push_back(vertate(root, cubevert(15, cubeRotation, scale)));
-        j["vertices"].push_back(stroke);
-    }
+    json stroke;
+    for (int i = 0; i < 16; i++) stroke.push_back(vertate(root, cubevert(i, cubeRotation, scale)));
+    j["vertices"].push_back(stroke);
     return j;
 }
 
@@ -451,6 +642,9 @@ json skeletate(json skelet, Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
     if (headCube && head.w > 0) {
         skelet = genCube(skelet, head, headCubeRotation, 2);
     }
+    if (headIco && head.w > 0) {
+        skelet = genIco(skelet, head, headIcoRotation, 1.5);
+    }
     if (handCube && lHand.w > 0) {
         skelet = genCube(skelet, lHand, handCubeRotationL, 1);
     }
@@ -468,7 +662,7 @@ json skeletate(json skelet, Vector4 sp[NUI_SKELETON_POSITION_COUNT]) {
 
 void makeJson() {
     json newJson = skeletonJson;
-    json skelet1, skelet2, matrix;
+    json skelet1, skelet2, ico, matrix;
 
     matrix = {
         1, 0, 0, 0,
@@ -484,21 +678,38 @@ void makeJson() {
     skelet2 = skeletate(skelet2, skeletonPosition2);
     skelet2["matrix"] = matrix;
 
+    newJson = json();
     if (activeSkeletons > 0) {
-        newJson = json();
         newJson["objects"].push_back(skelet1);
         if (activeSkeletons > 1) newJson["objects"].push_back(skelet2);
-        newJson["focalLength"] = -2.5;
-        skeletonJsonChanged = newJson != skeletonJson;
-        skeletonJson = newJson;
     }
+    skeletonJsonChanged = newJson != skeletonJson;
+    newJson["focalLength"] = -2.5;
+    skeletonJson = newJson;
+}
+
+int sendOsciRender() {
+    if (activeSkeletons == 0) {
+        std::string j = "{\"objects\": [{\"name\":\"Line Art\", \"vertices\" : [[{\"x\":-0.5, \"y\" : -0.5, \"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}]], \"matrix\" : [1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, -11.111111640930176, 0.0, 0.0, 0.0, 1.0] }] , \"focalLength\" : -2.5}";
+        int iResult = send(orsock, j.c_str(), j.length(), 0);
+        if (iResult == SOCKET_ERROR) {
+            return 1;
+        }
+    }
+    else if (skeletonJsonChanged) {
+        std::string j = skeletonJson.dump();
+        std::cout << "JSON Sending" << std::endl;
+        int iResult = send(orsock, j.c_str(), j.length(), 0);
+        if (iResult == SOCKET_ERROR) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 // Main code
 int main(int, char**)
 {
-    int frameCounter = 0;
-
     int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (iResult != 0) {
         wprintf(L"WSAStartup Failed! %d\n", iResult);
@@ -551,11 +762,8 @@ int main(int, char**)
         return 1;
     }
 
-    // Initialize Kinect
-    initKinect();
-
     // Setup SDL
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+    if (!SDL_Init(SDL_INIT_VIDEO))
     {
         printf("Error: SDL_Init(): %s\n", SDL_GetError());
         return -1;
@@ -599,19 +807,26 @@ int main(int, char**)
     ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
+    // Initialize Kinect
+    kinectConnected = initKinect();
+
     // Our state
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
-    float headCSpeedX = 0.0321;
-    float headCSpeedY = 0.0321;
-    float headCSpeedZ = 0.0321;
+    float headCSpeedX = 3.21;
+    float headCSpeedY = 3.21;
+    float headCSpeedZ = 3.21;
 
-    float handCSpeedX = 0.0213;
-    float handCSpeedY = 0.0213;
-    float handCSpeedZ = 0.0213;
+    float headISpeedX = -3.21/2;
+    float headISpeedY = -3.21/2;
+    float headISpeedZ = -3.21/2;
 
-    float footCSpeedX = 0.0123;
-    float footCSpeedY = 0.0123;
-    float footCSpeedZ = 0.0123;
+    float handCSpeedX = 2.13;
+    float handCSpeedY = 2.13;
+    float handCSpeedZ = 2.13;
+
+    float footCSpeedX = 2.23;
+    float footCSpeedY = 2.23;
+    float footCSpeedZ = 2.23;
 
     // Initialize textures
     glGenTextures(1, &texIDD);
@@ -630,6 +845,7 @@ int main(int, char**)
         0, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)dataC);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    int frameCounter = 0;
     // Main loop
     bool done = false;
     while (!done)
@@ -643,8 +859,34 @@ int main(int, char**)
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
                 done = true;
         }
+
+        const static int divider = 4;
+        float delt = io.DeltaTime * divider;
+        frameCounter = (frameCounter + 1) % divider;
+
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
         {
+            getKinectData(dataD, dataC);
+            if (frameCounter == 0) {
+                headCubeRotation = headCubeRotation + glm::vec3({ headCSpeedX * delt, headCSpeedY * delt, headCSpeedZ * delt });
+                headIcoRotation = headIcoRotation + glm::vec3({ headISpeedX * delt, headISpeedY * delt, headISpeedZ * delt });
+
+                handCubeRotationL = handCubeRotationL + glm::vec3({ handCSpeedX * delt, handCSpeedY * delt, handCSpeedZ * delt });
+                handCubeRotationR = handCubeRotationR + glm::vec3({ -handCSpeedX * delt, -handCSpeedY * delt, -handCSpeedZ * delt });
+
+                footCubeRotationL = footCubeRotationL + glm::vec3({ footCSpeedX * delt, footCSpeedY * delt, footCSpeedZ * delt });
+                footCubeRotationR = footCubeRotationR + glm::vec3({ -footCSpeedX * delt, -footCSpeedY * delt, -footCSpeedZ * delt });
+
+                makeJson();
+                iResult = sendOsciRender();
+                if (iResult != 0) {
+                    wprintf(L"Sending data failed! code %d\n", iResult);
+                    closesocket(orsock);
+                    WSACleanup();
+                    SDLCleanup(gl_context, window);
+                    return 1;
+                }
+            }
             SDL_Delay(10);
             continue;
         }
@@ -656,13 +898,15 @@ int main(int, char**)
 
         // Show the config window
         {
-            ImGui::Begin("Connection Manager");                          // Create a window called "Hello, world!" and append into it.
+            ImGui::Begin("Connection Manager");
 
-            ImGui::Text("Connected to osci-render");               // Display some text (you can use a format strings too)
+            ImGui::Text("Connected to osci-render");
 
             ImGui::Checkbox("Head Cube", &headCube);
             ImGui::Checkbox("Hand Cubes", &handCube);
             ImGui::Checkbox("Foot Cubes", &footCube);
+
+            ImGui::SliderFloat("Skeleton Z Distance", &slide, -5, 5);
 
             ImGui::SetWindowFontScale(1.5);
             ImGui::Text("Skeletons Tracked: %d", activeSkeletons);
@@ -678,39 +922,28 @@ int main(int, char**)
         // Draw Kinect Data
         getKinectData(dataD, dataC);
         drawKinectData();
-        const int divider = 4;
-        frameCounter = (frameCounter + 1) % divider;
+
         if (frameCounter == 0) {
-            headCubeRotation = headCubeRotation + glm::vec3({ headCSpeedX * divider, headCSpeedY * divider, headCSpeedZ * divider });
+            headCubeRotation = headCubeRotation + glm::vec3({ headCSpeedX * delt, headCSpeedY * delt, headCSpeedZ * delt });
+            headIcoRotation = headIcoRotation + glm::vec3({ headISpeedX * delt, headISpeedY * delt, headISpeedZ * delt });
 
-            handCubeRotationL = handCubeRotationL + glm::vec3({ handCSpeedX * divider, handCSpeedY * divider, handCSpeedZ * divider });
-            handCubeRotationR = handCubeRotationR + glm::vec3({ -handCSpeedX * divider, -handCSpeedY * divider, -handCSpeedZ * divider });
+            handCubeRotationL = handCubeRotationL + glm::vec3({ handCSpeedX * delt, handCSpeedY * delt, handCSpeedZ * delt });
+            handCubeRotationR = handCubeRotationR + glm::vec3({ -handCSpeedX * delt, -handCSpeedY * delt, -handCSpeedZ * delt });
 
-            footCubeRotationL = footCubeRotationL + glm::vec3({ footCSpeedX * divider, footCSpeedY * divider, footCSpeedZ * divider });
-            footCubeRotationR = footCubeRotationR + glm::vec3({ -footCSpeedX * divider, -footCSpeedY * divider, -footCSpeedZ * divider });
+            footCubeRotationL = footCubeRotationL + glm::vec3({ footCSpeedX * delt, footCSpeedY * delt, footCSpeedZ * delt });
+            footCubeRotationR = footCubeRotationR + glm::vec3({ -footCSpeedX * delt, -footCSpeedY * delt, -footCSpeedZ * delt });
 
             makeJson();
-            if (activeSkeletons == 0) {
-                std::string j = "{\"objects\": [{\"name\":\"Line Art\", \"vertices\" : [[{\"x\":-0.5, \"y\" : -0.5, \"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}, {\"x\":0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : 0.5,\"z\" : 8.610005378723145}, {\"x\":-0.5,\"y\" : -0.5,\"z\" : 8.610005378723145}]], \"matrix\" : [1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, 0.0, 0.0, 0.0, 0.0, 1.1111111640930176, -11.111111640930176, 0.0, 0.0, 0.0, 1.0] }] , \"focalLength\" : -2.5}";
-                iResult = send(orsock, j.c_str(), j.length(), 0);
-                if (iResult == SOCKET_ERROR) {
-                    wprintf(L"Sending data failed! code %d\n", iResult);
-                    closesocket(orsock);
-                    WSACleanup();
-                    return 1;
-                }
-            } else if (skeletonJsonChanged) {
-                std::string j = skeletonJson.dump();
-                std::cout << "JSON Sending" << std::endl;
-                iResult = send(orsock, j.c_str(), j.length(), 0);
-                if (iResult == SOCKET_ERROR) {
-                    wprintf(L"Sending data failed! code %d\n", iResult);
-                    closesocket(orsock);
-                    WSACleanup();
-                    return 1;
-                }
+            iResult = sendOsciRender();
+            if (iResult != 0) {
+                wprintf(L"Sending data failed! code %d\n", iResult);
+                closesocket(orsock);
+                WSACleanup();
+                SDLCleanup(gl_context, window);
+                return 1;
             }
         }
+
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
     }
@@ -722,18 +955,12 @@ int main(int, char**)
     if (iResult == SOCKET_ERROR) {
         wprintf(L"closesocket failed with error = %d\n", WSAGetLastError());
         WSACleanup();
+        SDLCleanup(gl_context, window);
         return 1;
     }
     WSACleanup();
 
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
-
-    SDL_GL_DestroyContext(gl_context);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    SDLCleanup(gl_context, window);
 
     return 0;
 }
